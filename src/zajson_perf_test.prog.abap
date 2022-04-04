@@ -119,6 +119,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
 
     methods to_abap_plain_obj raising cx_static_check.
     methods to_abap_aff_chkc raising cx_static_check.
+    methods to_abap_aff_chkc_xslt raising cx_static_check.
     methods to_abap_deep_obj raising cx_static_check.
     methods to_abap_array raising cx_static_check.
     methods to_abap_long_array raising cx_static_check.
@@ -152,6 +153,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
 
     data mv_json_plain_obj type string.
     data mv_json_aff_chkc type string.
+    data mv_json_aff_chkc_tabl type string_table.
     data mv_json_deep type string.
     data mv_json_array type string.
     data mv_json_long_array type string.
@@ -166,6 +168,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
     data mo_array type ref to zif_ajson.
     data mo_long_array type ref to zif_ajson.
     data mo_complex type ref to zif_ajson.
+    data mo_json_writer type ref to cl_sxml_string_writer.
 
     types:
       begin of ty_fragment,
@@ -215,15 +218,18 @@ class lcl_app implementation.
       '  "str2": "world"' &&
       '}'.
 
-    mv_json_aff_chkc =
-      '{' &&
-      '  "formatversion": "1",' &&
-      '  "header": {' &&
-      '    "description": "Example CHKC for ABAP file formats",' &&
-      '    "originallanguage": "en"' &&
-      '  },' &&
-      '  "parentcategory": "SYCM_S4H_READINESS"' &&
-      '}'.
+    mv_json_aff_chkc_tabl = value #(
+      ( `{` )
+      ( `  "formatversion": "1",`)
+      ( `"header": {` )
+      ( `  "description": "Example CHKC for ABAP file formats",` )
+      ( `    "originallanguage": "en"` )
+      ( `  },` )
+      ( `  "parentcategory": "SYCM_S4H_READINESS"` )
+      ( `}` )
+      ).
+
+    mv_json_aff_chkc = concat_lines_of(  table = mv_json_aff_chkc_tabl ).
 
     mv_json_deep =
       '{' &&
@@ -449,6 +455,16 @@ class lcl_app implementation.
 
     data ls_target type zif_aff_chkc_v1=>ty_main.
     mo_aff_chkc->to_abap( importing ev_container = ls_target ).
+
+  endmethod.
+
+  method to_abap_aff_chkc_xslt.
+    mo_json_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
+
+*    data ls_target type zif_aff_chkc_v1=>ty_main.
+*      CALL TRANSFORMATION ('CHKC_JSON')
+*        SOURCE (mv_json_aff_chkc)
+*        RESULT XML mo_json_writer.
 
   endmethod.
 
