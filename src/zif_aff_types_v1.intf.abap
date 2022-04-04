@@ -110,7 +110,7 @@ INTERFACE zif_aff_types_v1 PUBLIC.
       "! $required
       description           TYPE ty_description_60,
       "! $required
-      original_language     TYPE ty_original_language,
+      originallanguage     TYPE ty_original_language,
       abap_language_version TYPE ty_abap_language_version,
     END OF ty_header_60.
 

@@ -217,12 +217,12 @@ class lcl_app implementation.
 
     mv_json_aff_chkc =
       '{' &&
-      '  "formatVersion": "1",' &&
+      '  "formatversion": "1",' &&
       '  "header": {' &&
       '    "description": "Example CHKC for ABAP file formats",' &&
-      '    "originalLanguage": "en"' &&
+      '    "originallanguage": "en"' &&
       '  },' &&
-      '  "parentCategory": "SYCM_S4H_READINESS"' &&
+      '  "parentcategory": "SYCM_S4H_READINESS"' &&
       '}'.
 
     mv_json_deep =

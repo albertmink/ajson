@@ -6,14 +6,14 @@ INTERFACE zif_aff_chkc_v1
     "! ATC check category properties
     BEGIN OF ty_main,
       "! $required
-      format_version  TYPE if_aff_types_v1=>ty_format_version,
+      formatversion  TYPE zif_aff_types_v1=>ty_format_version,
       "! <p class="shorttext">Header</p>
       "! Header
       "! $required
-      header          TYPE if_aff_types_v1=>ty_header_60,
+      header          TYPE zif_aff_types_v1=>ty_header_60,
       "! <p class="shorttext">Parent Category</p>
       "! Name of the parent category
-      parent_category TYPE if_aff_types_v1=>ty_object_name_30,
+      parentcategory TYPE zif_aff_types_v1=>ty_object_name_30,
     END OF ty_main.
 
 ENDINTERFACE.
