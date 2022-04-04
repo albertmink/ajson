@@ -1,0 +1,74 @@
+<?sap.transform simple?>
+<tt:transform xmlns:tt="http://www.sap.com/transformation-templates">
+<tt:root name="root"/>
+<tt:template>
+<tt:ref name="root">
+<tt:cond>
+  <object>
+    <tt:group>
+      <tt:cond frq="?">
+        <str name="formatversion">
+          <tt:value ref="FORMATVERSION"/>
+        </str>
+      </tt:cond>
+      <tt:cond frq="?">
+        <object name="header" tt:ref="HEADER">
+          <tt:assign to-ref="ABAP_LANGUAGE_VERSION" val="C('')"/>
+          <tt:group>
+            <tt:cond frq="?">
+              <str name="description">
+                <tt:value ref="DESCRIPTION"/>
+              </str>
+            </tt:cond>
+            <tt:cond frq="?">
+              <str name="originalLanguage">
+                <tt:call-method class="cl_aff_xslt_callback_language" d-name="deserialize" reader="reader" s-name="serialize" writer="writer">
+                  <tt:with-parameter name="language" ref="ORIGINAL_LANGUAGE"/>
+                </tt:call-method>
+              </str>
+            </tt:cond>
+            <tt:cond s-check="ABAP_LANGUAGE_VERSION!=C('')" frq="?">
+              <str name="abapLanguageVersion">
+                <tt:value ref="ABAP_LANGUAGE_VERSION" map="
+                  val('')=xml('standard'),
+                  val('2')=xml('keyUser'),
+                  val('5')=xml('cloudDevelopment')
+                "/>
+              </str>
+            </tt:cond>
+            <tt:d-cond frq="*">
+               <_ tt:lax="on">
+                <tt:call-method class="CL_AFF_XSLT_CALLBACK_TYPE" name="RAISE_DIFFERENT_TYPE_EXCEPTION" reader="IO_READER">
+                  <tt:with-parameter name="MEMBERS" val="'description;originalLanguage;abapLanguageVersion;'"/>
+                </tt:call-method>
+                <tt:skip/>
+              </_>
+            </tt:d-cond>
+            <tt:d-cond frq="?">
+              <__/>
+            </tt:d-cond>
+          </tt:group>
+        </object>
+      </tt:cond>
+      <tt:cond s-check="not-initial(PARENTCATEGORY)" frq="?">
+        <str name="parentcategory">
+          <tt:value ref="PARENTCATEGORY"/>
+        </str>
+      </tt:cond>
+      <tt:d-cond frq="*">
+         <_ tt:lax="on">
+          <tt:call-method class="CL_AFF_XSLT_CALLBACK_TYPE" name="RAISE_DIFFERENT_TYPE_EXCEPTION" reader="IO_READER">
+            <tt:with-parameter name="MEMBERS" val="'formatVersion;header;parentCategory;'"/>
+          </tt:call-method>
+          <tt:skip/>
+        </_>
+      </tt:d-cond>
+      <tt:d-cond frq="?">
+        <__/>
+      </tt:d-cond>
+    </tt:group>
+  </object>
+</tt:cond>
+</tt:ref>
+</tt:template>
+</tt:transform>

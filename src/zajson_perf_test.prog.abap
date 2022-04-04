@@ -112,6 +112,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
 
     methods parse_plain_obj raising cx_static_check.
     methods parse_aff_chkc raising cx_static_check.
+    methods parse_aff_chkc_xslt raising cx_static_check.
     methods parse_deep_obj raising cx_static_check.
     methods parse_array raising cx_static_check.
     methods parse_long_array raising cx_static_check.
@@ -119,6 +120,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
 
     methods to_abap_plain_obj raising cx_static_check.
     methods to_abap_aff_chkc raising cx_static_check.
+    methods to_abap_aff_chkc_xslt raising cx_static_check.
     methods to_abap_deep_obj raising cx_static_check.
     methods to_abap_array raising cx_static_check.
     methods to_abap_long_array raising cx_static_check.
@@ -152,6 +154,8 @@ class lcl_app definition final inheriting from lcl_runner_base.
 
     data mv_json_plain_obj type string.
     data mv_json_aff_chkc type string.
+    data mv_json_aff_chkc_xstr type xstring.
+    data mv_json_aff_chkc_tabl type string_table.
     data mv_json_deep type string.
     data mv_json_array type string.
     data mv_json_long_array type string.
@@ -166,6 +170,11 @@ class lcl_app definition final inheriting from lcl_runner_base.
     data mo_array type ref to zif_ajson.
     data mo_long_array type ref to zif_ajson.
     data mo_complex type ref to zif_ajson.
+    data mo_json_writer type ref to cl_sxml_string_writer.
+    data mo_json_reader type ref to  if_sxml_reader.
+
+    data ST_RESULT type abap_trans_resbind_tab.
+
 
     types:
       begin of ty_fragment,
@@ -215,16 +224,20 @@ class lcl_app implementation.
       '  "str2": "world"' &&
       '}'.
 
-    mv_json_aff_chkc =
-      '{' &&
-      '  "formatversion": "1",' &&
-      '  "header": {' &&
-      '    "description": "Example CHKC for ABAP file formats",' &&
-      '    "originallanguage": "en"' &&
-      '  },' &&
-      '  "parentcategory": "SYCM_S4H_READINESS"' &&
-      '}'.
+    mv_json_aff_chkc_tabl = value #(
+      ( `{` )
+      ( `  "formatversion": "1",`)
+      ( `"header": {` )
+      ( `  "description": "Example CHKC for ABAP file formats",` )
+      ( `  "abapLanguageVersion": "cloudDevelopment",` )
+      ( `    "originallanguage": "en"` )
+      ( `  },` )
+      ( `  "parentcategory": "SYCM_S4H_READINESS"` )
+      ( `}` )
+      ).
 
+    mv_json_aff_chkc = concat_lines_of(  table = mv_json_aff_chkc_tabl ).
+    mv_json_aff_chkc_xstr = cl_abap_codepage=>convert_to( mv_json_aff_chkc ).
     mv_json_deep =
       '{' &&
       '    "string": "abc",' &&
@@ -392,6 +405,20 @@ class lcl_app implementation.
     mo_array      = zcl_ajson=>parse( mv_json_array ).
     mo_complex    = zcl_ajson=>parse( mv_json_complex ).
     mo_long_array = zcl_ajson=>parse( mv_json_long_array ).
+    mo_json_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
+
+
+
+    field-symbols <st_result> like line of ST_RESULT.
+
+    append initial line to ST_RESULT assigning <st_result>.
+    <st_result>-name = 'ROOT'.
+
+    data data type zif_aff_chkc_v1=>ty_main.
+    get reference of data into <st_result>-value.
+
+    mo_json_reader = cl_sxml_string_reader=>create( mv_json_aff_chkc_xstr ).
+
 
   endmethod.
 
@@ -406,6 +433,10 @@ class lcl_app implementation.
 
     data lo_json type ref to zif_ajson.
     lo_json = zcl_ajson=>parse( mv_json_aff_chkc ).
+
+  endmethod.
+
+  method parse_aff_chkc_xslt.
 
   endmethod.
 
@@ -449,6 +480,15 @@ class lcl_app implementation.
 
     data ls_target type zif_aff_chkc_v1=>ty_main.
     mo_aff_chkc->to_abap( importing ev_container = ls_target ).
+
+  endmethod.
+
+  method to_abap_aff_chkc_xslt.
+    " fill ABAP type with (previously parsed) data
+
+    call transformation ('CHKC_JSON')
+      source xml mo_json_reader
+      result (st_result).
 
   endmethod.
 
@@ -501,6 +541,7 @@ class lcl_app implementation.
 
       lo_app->run( 'parse_plain_obj' ).
       lo_app->run( 'parse_aff_chkc' ).
+      lo_app->run( 'parse_aff_chkc_xslt' ).
       lo_app->run( 'parse_deep_obj' ).
       lo_app->run( 'parse_array' ).
       lo_app->run(
@@ -514,6 +555,7 @@ class lcl_app implementation.
 
       lo_app->run( 'to_abap_plain_obj' ).
       lo_app->run( 'to_abap_aff_chkc' ).
+      lo_app->run( 'to_abap_aff_chkc_xslt' ).
       lo_app->run( 'to_abap_deep_obj' ).
       lo_app->run( 'to_abap_array' ).
       lo_app->run(
