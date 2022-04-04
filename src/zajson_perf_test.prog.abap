@@ -447,7 +447,7 @@ class lcl_app implementation.
 
   method to_abap_aff_chkc.
 
-    data ls_target type if_aff_chkc_v1=>ty_main.
+    data ls_target type zif_aff_chkc_v1=>ty_main.
     mo_aff_chkc->to_abap( importing ev_container = ls_target ).
 
   endmethod.
