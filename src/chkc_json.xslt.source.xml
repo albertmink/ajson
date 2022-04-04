@@ -7,7 +7,7 @@
   <object>
     <tt:group>
       <tt:cond frq="?">
-        <str name="formatVersion">
+        <str name="formatversion">
           <tt:value ref="FORMATVERSION"/>
         </str>
       </tt:cond>
@@ -51,7 +51,7 @@
         </object>
       </tt:cond>
       <tt:cond s-check="not-initial(PARENTCATEGORY)" frq="?">
-        <str name="parentCategory">
+        <str name="parentcategory">
           <tt:value ref="PARENTCATEGORY"/>
         </str>
       </tt:cond>
