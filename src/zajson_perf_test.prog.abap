@@ -111,12 +111,14 @@ class lcl_app definition final inheriting from lcl_runner_base.
   public section.
 
     methods parse_plain_obj raising cx_static_check.
+    methods parse_aff_chkc raising cx_static_check.
     methods parse_deep_obj raising cx_static_check.
     methods parse_array raising cx_static_check.
     methods parse_long_array raising cx_static_check.
     methods parse_complex raising cx_static_check.
 
     methods to_abap_plain_obj raising cx_static_check.
+    methods to_abap_aff_chkc raising cx_static_check.
     methods to_abap_deep_obj raising cx_static_check.
     methods to_abap_array raising cx_static_check.
     methods to_abap_long_array raising cx_static_check.
@@ -149,6 +151,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
         iv_lines type i.
 
     data mv_json_plain_obj type string.
+    data mv_json_aff_chkc type string.
     data mv_json_deep type string.
     data mv_json_array type string.
     data mv_json_long_array type string.
@@ -158,6 +161,7 @@ class lcl_app definition final inheriting from lcl_runner_base.
     data mr_long_array type ref to data.
 
     data mo_plain_obj type ref to zif_ajson.
+    data mo_aff_chkc type ref to zif_ajson.
     data mo_deep type ref to zif_ajson.
     data mo_array type ref to zif_ajson.
     data mo_long_array type ref to zif_ajson.
@@ -209,6 +213,16 @@ class lcl_app implementation.
       '  "date": "2020-03-15",' &&
       '  "str1": "hello",' &&
       '  "str2": "world"' &&
+      '}'.
+
+    mv_json_aff_chkc =
+      '{' &&
+      '  "formatversion": "1",' &&
+      '  "header": {' &&
+      '    "description": "Example CHKC for ABAP file formats",' &&
+      '    "originallanguage": "en"' &&
+      '  },' &&
+      '  "parentcategory": "SYCM_S4H_READINESS"' &&
       '}'.
 
     mv_json_deep =
@@ -373,6 +387,7 @@ class lcl_app implementation.
   method prepare_parsed.
 
     mo_plain_obj  = zcl_ajson=>parse( mv_json_plain_obj ).
+    mo_aff_chkc   = zcl_ajson=>parse( mv_json_aff_chkc ).
     mo_deep       = zcl_ajson=>parse( mv_json_deep ).
     mo_array      = zcl_ajson=>parse( mv_json_array ).
     mo_complex    = zcl_ajson=>parse( mv_json_complex ).
@@ -386,6 +401,14 @@ class lcl_app implementation.
     lo_json = zcl_ajson=>parse( mv_json_plain_obj ).
 
   endmethod.
+
+  method parse_aff_chkc.
+
+    data lo_json type ref to zif_ajson.
+    lo_json = zcl_ajson=>parse( mv_json_aff_chkc ).
+
+  endmethod.
+
 
   method parse_deep_obj.
 
@@ -419,6 +442,13 @@ class lcl_app implementation.
 
     data ls_target type ty_plain.
     mo_plain_obj->to_abap( importing ev_container = ls_target ).
+
+  endmethod.
+
+  method to_abap_aff_chkc.
+
+    data ls_target type zif_aff_chkc_v1=>ty_main.
+    mo_aff_chkc->to_abap( importing ev_container = ls_target ).
 
   endmethod.
 
@@ -470,6 +500,7 @@ class lcl_app implementation.
       lo_app->prepare( ).
 
       lo_app->run( 'parse_plain_obj' ).
+      lo_app->run( 'parse_aff_chkc' ).
       lo_app->run( 'parse_deep_obj' ).
       lo_app->run( 'parse_array' ).
       lo_app->run(
@@ -482,6 +513,7 @@ class lcl_app implementation.
       lo_app->prepare_parsed( ).
 
       lo_app->run( 'to_abap_plain_obj' ).
+      lo_app->run( 'to_abap_aff_chkc' ).
       lo_app->run( 'to_abap_deep_obj' ).
       lo_app->run( 'to_abap_array' ).
       lo_app->run(
