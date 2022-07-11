@@ -1,7 +1,7 @@
 interface zif_ajson
   public.
 
-  constants version type string value 'v1.1.2'. "#EC NOTEXT
+  constants version type string value 'v1.1.4'. "#EC NOTEXT
   constants origin type string value 'https://github.com/sbcgua/ajson'. "#EC NOTEXT
   constants license type string value 'MIT'. "#EC NOTEXT
 
@@ -46,6 +46,11 @@ interface zif_ajson
 
   methods freeze.
   methods keep_item_order
+    returning
+      value(ri_json) type ref to zif_ajson.
+  methods format_datetime
+    importing
+      iv_use_iso type abap_bool default abap_true
     returning
       value(ri_json) type ref to zif_ajson.
 

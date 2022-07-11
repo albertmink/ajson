@@ -2,6 +2,57 @@
 * UTILS
 **********************************************************************
 
+interface lif_kind.
+
+  types ty_kind type c length 1.
+
+  constants:
+    any         type ty_kind value cl_abap_typedescr=>typekind_any,
+    date        type ty_kind value cl_abap_typedescr=>typekind_date,
+    time        type ty_kind value cl_abap_typedescr=>typekind_time,
+    packed      type ty_kind value cl_abap_typedescr=>typekind_packed,
+    table       type ty_kind value cl_abap_typedescr=>typekind_table,
+    struct_flat type ty_kind value cl_abap_typedescr=>typekind_struct1,
+    struct_deep type ty_kind value cl_abap_typedescr=>typekind_struct2,
+    data_ref    type ty_kind value cl_abap_typedescr=>typekind_dref,
+    object_ref  type ty_kind value cl_abap_typedescr=>typekind_oref.
+
+  constants:
+    begin of numeric,
+      int1       type ty_kind value cl_abap_tabledescr=>typekind_int1,
+      int2       type ty_kind value cl_abap_tabledescr=>typekind_int2,
+      int4       type ty_kind value cl_abap_tabledescr=>typekind_int,
+      int8       type ty_kind value '8', " cl_abap_tabledescr=>typekind_int8 not in lower releases
+      float      type ty_kind value cl_abap_tabledescr=>typekind_float,
+      packed     type ty_kind value cl_abap_tabledescr=>typekind_packed,
+      decfloat16 type ty_kind value cl_abap_tabledescr=>typekind_decfloat16,
+      decfloat34 type ty_kind value cl_abap_tabledescr=>typekind_decfloat34,
+    end of numeric.
+
+  constants:
+    begin of texts,
+      char   type ty_kind value cl_abap_tabledescr=>typekind_char,
+      numc   type ty_kind value cl_abap_tabledescr=>typekind_num,
+      string type ty_kind value cl_abap_tabledescr=>typekind_string,
+    end of texts.
+
+  constants:
+    begin of binary,
+      hex     type ty_kind value cl_abap_tabledescr=>typekind_hex,
+      xstring type ty_kind value cl_abap_tabledescr=>typekind_xstring,
+    end of binary.
+
+  constants:
+    begin of deep_targets,
+      table       type ty_kind value cl_abap_typedescr=>typekind_table,
+      struct_flat type ty_kind value cl_abap_typedescr=>typekind_struct1,
+      struct_deep type ty_kind value cl_abap_typedescr=>typekind_struct2,
+      data_ref    type ty_kind value cl_abap_typedescr=>typekind_dref,
+      object_ref  type ty_kind value cl_abap_typedescr=>typekind_oref,
+    end of deep_targets.
+
+endinterface.
+
 class lcl_utils definition final.
   public section.
 
@@ -142,6 +193,9 @@ class lcl_json_parser implementation.
     data lx_sxml type ref to cx_sxml_error.
     data lv_location type string.
     try.
+      " TODO sane JSON check:
+      " JSON can be true,false,null,(-)digits
+      " or start from " or from {
       rt_json_tree = _parse( iv_json ).
     catch cx_sxml_parse_error into lx_sxml_parse.
       lv_location = _get_location(
@@ -242,6 +296,9 @@ class lcl_json_parser implementation.
                   <item>-name = lo_attr->get_value( ).
                 endif.
               endloop.
+            endif.
+            if <item>-name is initial.
+              raise( 'Node without name (maybe not JSON)' ).
             endif.
           endif.
 
@@ -575,7 +632,7 @@ class lcl_json_to_abap definition final.
         type_path         type string,
         target_field_name type string,
         dd                type ref to cl_abap_datadescr,
-        type_kind         like cl_abap_typedescr=>typekind_any,
+        type_kind         like lif_kind=>any,
         tab_item_buf      type ref to data,
       end of ty_type_cache.
     data mt_node_type_cache type hashed table of ty_type_cache with unique key type_path.
@@ -644,7 +701,7 @@ class lcl_json_to_abap implementation.
     data lo_ddescr type ref to cl_abap_datadescr.
 
     " Calculate type path
-    if is_parent_type-type_kind = cl_abap_typedescr=>typekind_table.
+    if is_parent_type-type_kind = lif_kind=>table.
       lv_node_type_path = is_parent_type-type_path && '/-'. " table item type
     elseif is_parent_type-type_kind is not initial.
       lv_node_type_path = is_parent_type-type_path && '/' && is_node-name.
@@ -668,11 +725,11 @@ class lcl_json_to_abap implementation.
       endif.
 
       case is_parent_type-type_kind.
-        when 'h'. " Table
+        when lif_kind=>table.
           lo_tdescr ?= is_parent_type-dd.
           rs_node_type-dd = lo_tdescr->get_table_line_type( ).
 
-        when 'u' or 'v'. " Structure
+        when lif_kind=>struct_flat or lif_kind=>struct_deep.
           lo_sdescr ?= is_parent_type-dd.
           lo_sdescr->get_component_type(
             exporting
@@ -693,9 +750,9 @@ class lcl_json_to_abap implementation.
       endcase.
 
       rs_node_type-type_kind         = rs_node_type-dd->type_kind. " for caching and cleaner unintialized access
-      if rs_node_type-type_kind = 'h'. " Table
+      if rs_node_type-type_kind = lif_kind=>table.
         lo_tdescr ?= rs_node_type-dd.
-        if lo_tdescr->table_kind <> 'S'. " standard
+        if lo_tdescr->table_kind <> cl_abap_tabledescr=>tablekind_std.
           lo_ddescr = lo_tdescr->get_table_line_type( ).
           create data rs_node_type-tab_item_buf type handle lo_ddescr.
         endif.
@@ -721,7 +778,7 @@ class lcl_json_to_abap implementation.
 
     " Assign container
     case is_parent_type-type_kind.
-      when 'h'. " Table
+      when lif_kind=>table.
         if is_parent_type-tab_item_buf is bound. " Indirect hint that table was sorted/hashed, see get_node_type.
           assign i_container_ref->* to <parent_anytab>.
           assert sy-subrc = 0.
@@ -735,7 +792,7 @@ class lcl_json_to_abap implementation.
           assert sy-subrc = 0.
         endif.
 
-      when 'u' or 'v'. " Structure
+      when lif_kind=>struct_flat or lif_kind=>struct_deep.
         assign i_container_ref->* to <parent_struc>.
         assert sy-subrc = 0.
     endcase.
@@ -746,7 +803,7 @@ class lcl_json_to_abap implementation.
       loop at mr_nodes->* assigning <n> using key array_index where path = iv_path.
 
         " Get or create type cache record
-        if is_parent_type-type_kind <> 'h' or ls_node_type-type_kind is initial.
+        if is_parent_type-type_kind <> lif_kind=>table or ls_node_type-type_kind is initial.
           " table records are the same, no need to refetch twice
           ls_node_type = get_node_type(
             is_node        = <n>
@@ -754,14 +811,15 @@ class lcl_json_to_abap implementation.
         endif.
 
         " Validate node type
-        if ls_node_type-type_kind ca 'lr'. " data/obj ref
+        if ls_node_type-type_kind = lif_kind=>data_ref or
+           ls_node_type-type_kind = lif_kind=>object_ref.
           " TODO maybe in future
           zcx_ajson_error=>raise( 'Cannot assign to ref' ).
         endif.
 
         " Find target field reference
         case is_parent_type-type_kind.
-          when 'h'. " Table
+          when lif_kind=>table.
             if not ls_node_type-target_field_name co '0123456789'.
               " Does not affect anything actually but for integrity
               zcx_ajson_error=>raise( 'Need index to access tables' ).
@@ -772,7 +830,7 @@ class lcl_json_to_abap implementation.
               assert sy-subrc = 0.
             endif.
 
-          when 'u' or 'v'.
+          when lif_kind=>struct_flat or lif_kind=>struct_deep.
             field-symbols <field> type any.
             assign component ls_node_type-target_field_name of structure <parent_struc> to <field>.
             assert sy-subrc = 0.
@@ -788,7 +846,8 @@ class lcl_json_to_abap implementation.
         " Process value assignment
         case <n>-type.
           when zif_ajson=>node_type-object.
-            if not ls_node_type-type_kind co 'uv'.
+            if ls_node_type-type_kind <> lif_kind=>struct_flat and
+               ls_node_type-type_kind <> lif_kind=>struct_deep.
               zcx_ajson_error=>raise( 'Expected structure' ).
             endif.
             any_to_abap(
@@ -797,7 +856,7 @@ class lcl_json_to_abap implementation.
               i_container_ref = lr_target_field ).
 
           when zif_ajson=>node_type-array.
-            if not ls_node_type-type_kind = 'h'.
+            if not ls_node_type-type_kind = lif_kind=>table.
               zcx_ajson_error=>raise( 'Expected table' ).
             endif.
             any_to_abap(
@@ -846,7 +905,7 @@ class lcl_json_to_abap implementation.
 
     field-symbols <container> type any.
 
-    if is_node_type-type_kind ca 'lruvh'. " refs, table, strucs
+    if is_node_type-type_kind ca lif_kind=>deep_targets.
       zcx_ajson_error=>raise( |Unsupported target for value [{ is_node_type-type_kind }]| ).
     endif.
 
@@ -865,9 +924,9 @@ class lcl_json_to_abap implementation.
 
       when zif_ajson=>node_type-string.
         " TODO: check type ?
-        if is_node_type-type_kind = 'D' and is_node-value is not initial.
+        if is_node_type-type_kind = lif_kind=>date and is_node-value is not initial.
           <container> = to_date( is_node-value ).
-        elseif is_node_type-type_kind = 'P' and is_node-value is not initial.
+        elseif is_node_type-type_kind = lif_kind=>packed and is_node-value is not initial.
           <container> = to_timestamp( is_node-value ).
         else.
           <container> = is_node-value.
@@ -990,6 +1049,7 @@ class lcl_abap_to_json definition final.
         iv_array_index     type i default 0
         ii_custom_mapping  type ref to zif_ajson_mapping optional
         iv_keep_item_order type abap_bool default abap_false
+        iv_format_datetime type abap_bool default abap_false
       returning
         value(rt_nodes)   type zif_ajson=>ty_nodes_tt
       raising
@@ -1003,10 +1063,27 @@ class lcl_abap_to_json definition final.
         iv_array_index     type i default 0
         ii_custom_mapping  type ref to zif_ajson_mapping optional
         iv_keep_item_order type abap_bool default abap_false
+        iv_format_datetime type abap_bool default abap_false
       returning
         value(rt_nodes)   type zif_ajson=>ty_nodes_tt
       raising
         zcx_ajson_error.
+
+    class-methods format_date
+      importing
+        iv_date type d
+      returning
+        value(rv_str) type string.
+    class-methods format_time
+      importing
+        iv_time type t
+      returning
+        value(rv_str) type string.
+    class-methods format_timestamp
+      importing
+        iv_ts type timestamp
+      returning
+        value(rv_str) type string.
 
     class-methods class_constructor.
 
@@ -1015,6 +1092,7 @@ class lcl_abap_to_json definition final.
     class-data gv_ajson_absolute_type_name type string.
     data mi_custom_mapping type ref to zif_ajson_mapping.
     data mv_keep_item_order type abap_bool.
+    data mv_format_datetime type abap_bool.
 
     methods convert_any
       importing
@@ -1030,7 +1108,7 @@ class lcl_abap_to_json definition final.
 
     methods convert_ajson
       importing
-        io_json type ref to zcl_ajson
+        io_json type ref to zif_ajson
         is_prefix type zif_ajson=>ty_path_name
         iv_index type i default 0
       changing
@@ -1122,6 +1200,7 @@ class lcl_abap_to_json implementation.
     create object lo_converter.
     lo_converter->mi_custom_mapping  = ii_custom_mapping.
     lo_converter->mv_keep_item_order = iv_keep_item_order.
+    lo_converter->mv_format_datetime = iv_format_datetime.
 
     lo_converter->convert_any(
       exporting
@@ -1172,7 +1251,9 @@ class lcl_abap_to_json implementation.
 
       when others.
 
-        if io_type->type_kind = cl_abap_typedescr=>typekind_dref.
+        if io_type->type_kind = lif_kind=>data_ref or iv_data is initial.
+          " Convert data references and initial references to other types (like ref to class or interface)
+          " Initial references will result in "null"
           convert_ref(
             exporting
               iv_data   = iv_data
@@ -1182,7 +1263,7 @@ class lcl_abap_to_json implementation.
             changing
               ct_nodes = ct_nodes ).
 
-        elseif io_type->type_kind = cl_abap_typedescr=>typekind_oref
+        elseif io_type->type_kind = lif_kind=>object_ref
           and cl_abap_typedescr=>describe_by_object_ref( iv_data )->absolute_name = gv_ajson_absolute_type_name.
           convert_ajson(
             exporting
@@ -1223,6 +1304,43 @@ class lcl_abap_to_json implementation.
 
   endmethod.
 
+  method format_date.
+    if iv_date is not initial.
+      rv_str = iv_date+0(4) && '-' && iv_date+4(2) && '-' && iv_date+6(2).
+    endif.
+  endmethod.
+
+  method format_time.
+    if iv_time is not initial.
+      rv_str = iv_time+0(2) && ':' && iv_time+2(2) && ':' && iv_time+4(2).
+    endif.
+  endmethod.
+
+  method format_timestamp.
+
+    constants lc_utc type c length 6 value 'UTC'.
+
+    data lv_date type d.
+    data lv_time type t.
+
+    if iv_ts is initial.
+      " The zero value is January 1, year 1, 00:00:00.000000000 UTC.
+      lv_date = '00010101'.
+    else.
+
+      convert time stamp iv_ts time zone lc_utc
+        into date lv_date time lv_time.
+
+    endif.
+
+    rv_str =
+      lv_date+0(4) && '-' && lv_date+4(2) && '-' && lv_date+6(2) &&
+      'T' &&
+      lv_time+0(2) && '-' && lv_time+2(2) && '-' && lv_time+4(2) &&
+      'Z'.
+
+  endmethod.
+
   method convert_value.
 
     data ls_node like line of ct_nodes.
@@ -1253,10 +1371,33 @@ class lcl_abap_to_json implementation.
       else.
         ls_node-value = 'false'.
       endif.
-    elseif io_type->type_kind co 'CNgXyDT'. " Char like, date/time, xstring
+    elseif io_type->absolute_name = '\TYPE=TIMESTAMP'.
+      if mv_format_datetime = abap_true.
+        ls_node-type  = zif_ajson=>node_type-string.
+        ls_node-value = format_timestamp( iv_data ).
+      else.
+        ls_node-type  = zif_ajson=>node_type-number.
+        ls_node-value = |{ iv_data }|.
+      endif.
+    elseif io_type->type_kind co lif_kind=>texts or
+           io_type->type_kind co lif_kind=>binary.
       ls_node-type = zif_ajson=>node_type-string.
       ls_node-value = |{ iv_data }|.
-    elseif io_type->type_kind co 'bsI8PaeF'. " Numeric
+    elseif io_type->type_kind = lif_kind=>date.
+      ls_node-type = zif_ajson=>node_type-string.
+      if mv_format_datetime = abap_true.
+        ls_node-value = format_date( iv_data ).
+      else.
+        ls_node-value = |{ iv_data }|.
+      endif.
+    elseif io_type->type_kind = lif_kind=>time.
+      ls_node-type = zif_ajson=>node_type-string.
+      if mv_format_datetime = abap_true.
+        ls_node-value = format_time( iv_data ).
+      else.
+        ls_node-value = |{ iv_data }|.
+      endif.
+    elseif io_type->type_kind co lif_kind=>numeric.
       ls_node-type = zif_ajson=>node_type-number.
       ls_node-value = |{ iv_data }|.
     else.
@@ -1346,7 +1487,7 @@ class lcl_abap_to_json implementation.
     " and rtti seems to cache type descriptions really well (https://github.com/sbcgua/benchmarks.git)
     " the structures will be repeated in real life
 
-    ls_next_prefix-path = is_prefix-path && ls_root-name && '/'.
+    ls_next_prefix-path = is_prefix-path && <root>-name && '/'.
 
     loop at lt_comps assigning <c>.
 
@@ -1424,7 +1565,7 @@ class lcl_abap_to_json implementation.
     lo_table ?= io_type.
     lo_ltype  = lo_table->get_table_line_type( ).
 
-    ls_next_prefix-path = is_prefix-path && is_prefix-name && '/'.
+    ls_next_prefix-path = is_prefix-path && <root>-name && '/'.
     assign iv_data to <tab>.
 
     lv_tabix = 1.
@@ -1456,6 +1597,7 @@ class lcl_abap_to_json implementation.
     create object lo_converter.
     lo_converter->mi_custom_mapping  = ii_custom_mapping.
     lo_converter->mv_keep_item_order = iv_keep_item_order.
+    lo_converter->mv_format_datetime = iv_format_datetime.
 
     lo_converter->insert_value_with_type(
       exporting
@@ -1475,7 +1617,9 @@ class lcl_abap_to_json implementation.
     data ls_node like line of ct_nodes.
 
     lv_prefix = is_prefix-path && is_prefix-name.
-    if io_type->type_kind co 'CNgXyDT'. " Char like, date/time, xstring
+    if io_type->type_kind co lif_kind=>texts or
+       io_type->type_kind co lif_kind=>date or
+       io_type->type_kind co lif_kind=>time.
       if iv_type = zif_ajson=>node_type-boolean and iv_data <> 'true' and iv_data <> 'false'.
         zcx_ajson_error=>raise( |Unexpected boolean value [{ iv_data }] @{ lv_prefix }| ).
       elseif iv_type = zif_ajson=>node_type-null and iv_data is not initial.
@@ -1486,7 +1630,7 @@ class lcl_abap_to_json implementation.
         and iv_type <> zif_ajson=>node_type-null and iv_type <> zif_ajson=>node_type-number.
         zcx_ajson_error=>raise( |Unexpected type for value [{ iv_type },{ iv_data }] @{ lv_prefix }| ).
       endif.
-    elseif io_type->type_kind co 'bsI8PaeF'. " Numeric
+    elseif io_type->type_kind co lif_kind=>numeric.
       if iv_type <> zif_ajson=>node_type-number.
         zcx_ajson_error=>raise( |Unexpected value for numeric [{ iv_data }] @{ lv_prefix }| ).
       endif.

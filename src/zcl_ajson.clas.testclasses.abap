@@ -84,6 +84,8 @@ class ltcl_parser_test definition final
     methods parse_date for testing raising zcx_ajson_error.
     methods parse_bare_values for testing raising zcx_ajson_error.
     methods parse_error for testing raising zcx_ajson_error.
+    methods duplicate_key for testing raising zcx_ajson_error.
+    methods non_json for testing raising zcx_ajson_error.
 
 endclass.
 
@@ -342,6 +344,36 @@ class ltcl_parser_test implementation.
     cl_abap_unit_assert=>assert_equals(
       act = lt_act
       exp = lo_nodes->mt_nodes ).
+
+  endmethod.
+
+  method duplicate_key.
+
+    data lo_cut type ref to lcl_json_parser.
+    data lx type ref to zcx_ajson_error.
+
+    try.
+      create object lo_cut.
+      lo_cut->parse( '{ "a" = 1, "a" = 1 }' ).
+      cl_abap_unit_assert=>fail( ).
+    catch zcx_ajson_error into lx.
+      cl_abap_unit_assert=>assert_not_initial( lx ).
+    endtry.
+
+  endmethod.
+
+  method non_json.
+
+    data lo_cut type ref to lcl_json_parser.
+    data lx type ref to zcx_ajson_error.
+
+    try.
+      create object lo_cut.
+      lo_cut->parse( '<html><head><title>X</title></head><body><h1>Y</h1></body></html>' ).
+      cl_abap_unit_assert=>fail( ).
+    catch zcx_ajson_error into lx.
+      cl_abap_unit_assert=>assert_not_initial( lx ).
+    endtry.
 
   endmethod.
 
@@ -1827,15 +1859,19 @@ class ltcl_writer_test definition final
     methods set_value for testing raising zcx_ajson_error.
     methods ignore_empty for testing raising zcx_ajson_error.
     methods set_obj for testing raising zcx_ajson_error.
+    methods set_obj_w_date_time for testing raising zcx_ajson_error.
     methods set_tab for testing raising zcx_ajson_error.
     methods set_tab_hashed for testing raising zcx_ajson_error.
+    methods set_tab_nested_struct for testing raising zcx_ajson_error.
     methods prove_path_exists for testing raising zcx_ajson_error.
     methods delete_subtree for testing raising zcx_ajson_error.
     methods delete for testing raising zcx_ajson_error.
     methods arrays for testing raising zcx_ajson_error.
     methods arrays_negative for testing raising zcx_ajson_error.
     methods root_assignment for testing raising zcx_ajson_error.
-    methods set_bool for testing raising zcx_ajson_error.
+    methods set_bool_abap_bool for testing raising zcx_ajson_error.
+    methods set_bool_int for testing raising zcx_ajson_error.
+    methods set_bool_tab for testing raising zcx_ajson_error.
     methods set_str for testing raising zcx_ajson_error.
     methods set_int for testing raising zcx_ajson_error.
     methods set_date for testing raising zcx_ajson_error.
@@ -2112,6 +2148,7 @@ class ltcl_writer_test implementation.
       begin of ls_struc,
         b type string value 'abc',
         c type i value 10,
+        d type d value '20220401',
       end of ls_struc.
 
     lo_cut = zcl_ajson=>create_empty( ).
@@ -2119,13 +2156,52 @@ class ltcl_writer_test implementation.
 
     " Prepare source
     create object lo_nodes.
-    lo_nodes->add( '        |      |object |     ||1' ).
-    lo_nodes->add( '/       |x     |object |     ||2' ).
-    lo_nodes->add( '/x/     |b     |str    |abc  ||0' ).
-    lo_nodes->add( '/x/     |c     |num    |10   ||0' ).
+    lo_nodes->add( '        |      |object |           ||1' ).
+    lo_nodes->add( '/       |x     |object |           ||3' ).
+    lo_nodes->add( '/x/     |b     |str    |abc        ||0' ).
+    lo_nodes->add( '/x/     |c     |num    |10         ||0' ).
+    lo_nodes->add( '/x/     |d     |str    |2022-04-01 ||0' ).
 
     li_writer->set(
       iv_path = '/x'
+      iv_val  = ls_struc ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->mt_json_tree
+      exp = lo_nodes->sorted( ) ).
+
+  endmethod.
+
+  method set_obj_w_date_time.
+
+    data lo_nodes type ref to lcl_nodes_helper.
+    data lo_cut type ref to zif_ajson.
+    data li_writer type ref to zif_ajson.
+
+    data:
+      begin of ls_struc,
+        d       type d value '20220401',
+        d_empty type d,
+        t       type t value '200103',
+        t_empty type t,
+        ts      type timestamp value '20220401200103',
+        p(5)    type p decimals 2 value '123.45',
+      end of ls_struc.
+
+    lo_cut = zcl_ajson=>create_empty( )->format_datetime( ).
+    li_writer = lo_cut.
+
+    " Prepare source
+    create object lo_nodes.
+    lo_nodes->add( '      |        |object |           ||6' ).
+    lo_nodes->add( '/     |d       |str    |2022-04-01 ||0' ).
+    lo_nodes->add( '/     |d_empty |str    |           ||0' ).
+    lo_nodes->add( '/     |t       |str    |20:01:03   ||0' ).
+    lo_nodes->add( '/     |t_empty |str    |           ||0' ).
+    lo_nodes->add( '/     |ts      |str    |2022-04-01T20-01-03Z ||0' ).
+    lo_nodes->add( '/     |p       |num    |123.45     ||0' ).
+
+    li_writer->set(
+      iv_path = '/'
       iv_val  = ls_struc ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_cut->mt_json_tree
@@ -2187,6 +2263,56 @@ class ltcl_writer_test implementation.
       iv_val  = lt_tab ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_cut->mt_json_tree
+      exp = lo_nodes->sorted( ) ).
+
+  endmethod.
+
+  method set_tab_nested_struct.
+
+    types:
+      begin of ty_include,
+        str type string,
+        int type i,
+      end of ty_include,
+      begin of ty_struct.
+        include type ty_include.
+    types: dat type xstring,
+      end of ty_struct,
+      ty_tab type standard table of ty_struct with default key.
+
+    data lo_nodes type ref to lcl_nodes_helper.
+    data li_cut type ref to zif_ajson.
+    data ls_tab type ty_struct.
+    data lt_tab type ty_tab.
+
+    li_cut = zcl_ajson=>create_empty( ).
+
+    ls_tab-str = 'hello'.
+    ls_tab-int = 123.
+    ls_tab-dat = '4041'.
+    insert ls_tab into table lt_tab.
+    ls_tab-str = 'world'.
+    ls_tab-int = 456.
+    ls_tab-dat = '6061'.
+    insert ls_tab into table lt_tab.
+
+    " prepare source
+    create object lo_nodes.
+    lo_nodes->add( '        |      |array  |     |0|2' ).
+    lo_nodes->add( '/       |1     |object |     |1|3' ).
+    lo_nodes->add( '/       |2     |object |     |2|3' ).
+    lo_nodes->add( '/1/     |dat   |str    |4041 |0|0' ).
+    lo_nodes->add( '/1/     |int   |num    |123  |0|0' ).
+    lo_nodes->add( '/1/     |str   |str    |hello|0|0' ).
+    lo_nodes->add( '/2/     |dat   |str    |6061 |0|0' ).
+    lo_nodes->add( '/2/     |int   |num    |456  |0|0' ).
+    lo_nodes->add( '/2/     |str   |str    |world|0|0' ).
+
+    li_cut->set(
+      iv_path = '/'
+      iv_val  = lt_tab ).
+    cl_abap_unit_assert=>assert_equals(
+      act = li_cut->mt_json_tree
       exp = lo_nodes->sorted( ) ).
 
   endmethod.
@@ -2443,12 +2569,11 @@ class ltcl_writer_test implementation.
 
   endmethod.
 
-  method set_bool.
+  method set_bool_abap_bool.
 
     data lo_cut type ref to zcl_ajson.
     data lo_nodes_exp type ref to lcl_nodes_helper.
     data li_writer type ref to zif_ajson.
-    data lt_tab type string_table.
 
     " abap_bool
     lo_cut = zcl_ajson=>create_empty( ).
@@ -2469,6 +2594,14 @@ class ltcl_writer_test implementation.
       act = lo_cut->mt_json_tree
       exp = lo_nodes_exp->sorted( ) ).
 
+  endmethod.
+
+  method set_bool_int.
+
+    data lo_cut type ref to zcl_ajson.
+    data lo_nodes_exp type ref to lcl_nodes_helper.
+    data li_writer type ref to zif_ajson.
+
     " int
     lo_cut = zcl_ajson=>create_empty( ).
     li_writer = lo_cut.
@@ -2487,6 +2620,15 @@ class ltcl_writer_test implementation.
     cl_abap_unit_assert=>assert_equals(
       act = lo_cut->mt_json_tree
       exp = lo_nodes_exp->sorted( ) ).
+
+  endmethod.
+
+  method set_bool_tab.
+
+    data lo_cut type ref to zcl_ajson.
+    data lo_nodes_exp type ref to lcl_nodes_helper.
+    data li_writer type ref to zif_ajson.
+    data lt_tab type string_table.
 
     " tab
     lo_cut = zcl_ajson=>create_empty( ).
@@ -2575,12 +2717,18 @@ class ltcl_writer_test implementation.
     lo_cut = zcl_ajson=>create_empty( ).
     li_writer = lo_cut.
     create object lo_nodes_exp.
-    lo_nodes_exp->add( '        |      |object |           ||1' ).
+    lo_nodes_exp->add( '        |      |object |           ||2' ).
     lo_nodes_exp->add( '/       |a     |str    |2020-07-05 ||0' ).
+    lo_nodes_exp->add( '/       |b     |str    |           ||0' ).
 
     lv_date = '20200705'.
     li_writer->set_date(
       iv_path = '/a'
+      iv_val  = lv_date ).
+
+    clear lv_date.
+    li_writer->set_date(
+      iv_path = '/b'
       iv_val  = lv_date ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -2802,6 +2950,7 @@ class ltcl_integrated definition
     methods stringify for testing raising zcx_ajson_error.
     methods item_order_integrated for testing raising zcx_ajson_error.
     methods chaining for testing raising zcx_ajson_error.
+    methods push_json for testing raising zcx_ajson_error.
 
 endclass.
 
@@ -2918,6 +3067,7 @@ class ltcl_integrated implementation.
     data li_writer type ref to zif_ajson.
     data lv_exp type string.
     data: begin of ls_dummy, x type i, end of ls_dummy.
+    data: begin of ls_data, str type string, cls type ref to zcl_ajson, end of ls_data.
 
     ls_dummy-x = 1.
     lo_cut    = zcl_ajson=>create_empty( ).
@@ -2983,6 +3133,19 @@ class ltcl_integrated implementation.
       occ = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_cut->stringify( iv_indent = 2 )
+      exp = lv_exp ).
+
+    " structure with initial ref to class
+    ls_data-str = 'test'.
+
+    li_writer = lo_cut.
+    li_writer->set(
+      iv_path = '/'
+      iv_val  = ls_data ).
+
+    lv_exp = '{"cls":null,"str":"test"}'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->stringify( )
       exp = lv_exp ).
 
   endmethod.
@@ -3054,6 +3217,42 @@ class ltcl_integrated implementation.
         iv_val  = '1' ) ).
 
     cl_abap_unit_assert=>assert_bound( li_cut->keep_item_order( ) ).
+
+  endmethod.
+
+  method push_json.
+
+    data li_cut type ref to zif_ajson.
+    data li_sub type ref to zif_ajson.
+    data lv_act type string.
+    data lv_exp type string.
+
+    li_cut = zcl_ajson=>create_empty( ).
+    li_sub = zcl_ajson=>create_empty( )->set(
+      iv_path = 'a'
+      iv_val  = '1' ).
+
+    li_cut->touch_array( '/list' ).
+    li_cut->push(
+      iv_path = '/list'
+      iv_val  = 'hello' ).
+    li_cut->push(
+      iv_path = '/list'
+      iv_val  = zcl_ajson=>create_empty( )->set(
+        iv_path = 'a'
+        iv_val  = '1' ) ).
+    li_cut->push(
+      iv_path = '/list'
+      iv_val  = zcl_ajson=>create_empty( )->set(
+        iv_path = '/'
+        iv_val  = 'world' ) ).
+
+    lv_act = li_cut->stringify( ).
+    lv_exp = '{"list":["hello",{"a":"1"},"world"]}'.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_act
+      exp = lv_exp ).
 
   endmethod.
 
